@@ -172,3 +172,44 @@ public class RoleAssign {
     }
 
 }
+
+
+
+
+****************************************
+package com.ril;
+
+import java.util.Hashtable;
+
+import javax.security.auth.login.LoginException;
+
+import oracle.iam.platform.OIMClient;
+
+public class Oimconnection {
+	public static OIMClient oimClient;
+	
+	public static OIMClient  Oimconnection()
+	{
+		Hashtable<Object, Object> env = new Hashtable<Object, Object>();
+		env.put(OIMClient.JAVA_NAMING_FACTORY_INITIAL, "weblogic.jndi.WLInitialContextFactory");
+		env.put(OIMClient.JAVA_NAMING_PROVIDER_URL, "t3://pdoim01.bss.jio.com:14000");
+        System.setProperty("java.security.auth.login.config", "C://Softwares//designconsole//config//authwl.conf");
+        System.setProperty("OIM.AppServerType", "wls");
+        System.setProperty("APPSERVER_TYPE", "wls");
+        oracle.iam.platform.OIMClient oimClient = new oracle.iam.platform.OIMClient(env);
+
+		try {
+        oimClient.login("xelsysadm", "JioIAM0315".toCharArray());
+        System.out.println();
+		System.out.print("Successfully Connected with OIM ");
+		} catch (LoginException e) {
+		System.out.print("Login Exception"+ e);
+		
+		}
+		return  oimClient;
+	}
+
+	
+	
+
+}
