@@ -1,0 +1,1660 @@
+//Programs
+//Password Encrypt
+package com.password;
+
+
+import com.sun.mail.util.BASE64DecoderStream;
+import com.sun.mail.util.BASE64EncoderStream;
+
+import java.security.Key;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+
+public class DESEncryption {   
+    public static String normalizeKey(String key) {
+        String finalKey = (key.toLowerCase() + "________").substring(0, 8);
+        return finalKey;
+    }
+    
+    public static void main(String[] arg){
+         DESEncryption desEncryption = new DESEncryption();
+        /*
+        try {
+           System.out.println(desEncryption.decrypt("aPbngT/iBE124D11rrGcfw==", "xelsysadm"));
+        } catch (Exception e) {
+            e.printStackTrace();
+        } */
+
+
+        try {
+            System.out.println(desEncryption.encrypt("Kvkreddy@1234", "C484163"));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     *
+     * @param textToEncrypt
+     * @param encKey
+     * @return
+     * @throws Exception
+     */
+    public static String encrypt(String textToEncrypt, String encKey) throws Exception {
+        Key desKey = new SecretKeySpec(normalizeKey(encKey).getBytes(), "DES");
+        Cipher ecipher = Cipher.getInstance("DES");
+        ecipher.init(Cipher.ENCRYPT_MODE, desKey);
+        byte[] utf8Text = textToEncrypt.getBytes("UTF8");
+        byte[] encryptedTxt = BASE64EncoderStream.encode(ecipher.doFinal(utf8Text));
+        return new String(encryptedTxt);
+    }
+    
+    public static String decrypt(String textToDecrypt, String decKey) throws Exception {
+        Key desKey = new SecretKeySpec(normalizeKey(decKey).getBytes(), "DES");
+        Cipher decipher = Cipher.getInstance("DES");
+        decipher.init(Cipher.DECRYPT_MODE, desKey);  
+        byte[] decryptedUTF8Txt = decipher.doFinal(BASE64DecoderStream.decode(textToDecrypt.getBytes()));
+        return new String(decryptedUTF8Txt, "UTF8");
+    }
+}
+
+
+
+///////////////Account Request
+package com.ril;
+
+/*
+ * * java program for request for account
+ */
+
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Set;
+import javax.naming.Context;
+import oracle.iam.identity.usermgmt.api.UserManager;
+import oracle.iam.identity.usermgmt.vo.User;
+import oracle.iam.platform.OIMClient;
+import oracle.iam.platform.entitymgr.vo.SearchCriteria;
+import oracle.iam.provisioning.api.ApplicationInstanceService;
+import oracle.iam.provisioning.api.ProvisioningService;
+import oracle.iam.provisioning.vo.Account;
+import oracle.iam.provisioning.vo.AccountData;
+import oracle.iam.provisioning.vo.ApplicationInstance;
+
+public class AccountRequest {
+
+	public static void main(String[] args) throws Exception {
+
+	    String ctxFactory = "weblogic.jndi.WLInitialContextFactory";
+	    // OIMConnect oimConn = new OIMConnect();
+	    OIMClient oimClient = null;
+	    Hashtable<String, String> env = new Hashtable<String, String>();
+	    env.put(Context.INITIAL_CONTEXT_FACTORY, ctxFactory);
+	    env.put(Context.PROVIDER_URL, "t3://pdoim01.bss.jio.com:14000");
+
+	    System.setProperty("OIM.AppServerType", "wls");
+	    System.setProperty("APPSERVER_TYPE", "wls");
+	    System.setProperty("java.security.auth.login.config", "C://Softwares//designconsole//config//authwl.conf");
+	    oimClient = new OIMClient(env);     
+	    oimClient.login("xelsysadm", "JioIAM0315".toCharArray());
+        
+        System.out.println("Connected");
+
+        ApplicationInstanceService aiSvc = oimClient.getService(ApplicationInstanceService.class);
+        ProvisioningService provSvc = oimClient.getService(ProvisioningService.class);
+        UserManager usrMgr = oimClient.getService(UserManager.class);
+        
+        String appInstanceName = "PRMMaintainDealer";
+        
+	    File inputFile = new File("C:\\Oimapi\\AAA.txt");
+	    FileReader fReader = new FileReader(inputFile);
+	    
+	    BufferedReader bReader = new BufferedReader(fReader);
+	    String readData = bReader.readLine();
+	    while (readData != null)
+        {
+
+        System.out.println("user: "+readData);    
+        SearchCriteria criteria = new SearchCriteria("User Login", readData, SearchCriteria.Operator.BEGINS_WITH);
+        Set retSet = new HashSet();
+        retSet.add("usr_key");
+        retSet.add("User Login");
+
+        List<User> users = usrMgr.search(criteria, retSet, null);
+        
+        for (User u : users) {
+        	ApplicationInstance ai = aiSvc.findApplicationInstanceByName(appInstanceName);
+
+        	HashMap<String, Object> parentData = new HashMap<String, Object>();
+        	AccountData accountData = new AccountData(ai.getAccountForm().getFormKey() + "", "", parentData);
+        	Account account = new Account(ai, accountData);
+                     account.setAccountType(Account.ACCOUNT_TYPE.Primary);
+                
+        	System.out.println("Provisioning app instance " + appInstanceName + " to user " + u.getEntityId());
+        	provSvc.provision(u.getEntityId(), account);
+                
+                 }
+                 readData = bReader.readLine();
+             }
+	    fReader.close();
+	    bReader.close();
+            
+	    System.out.println("user operation completed");
+            oimClient.logout();
+            System.exit(0);
+    		
+	}
+}
+
+
+////////Account Status
+package com.ril;
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.List;
+
+import oracle.iam.platform.OIMClient;
+import oracle.iam.platform.authopss.exception.AccessDeniedException;
+import oracle.iam.provisioning.api.ApplicationInstanceService;
+import oracle.iam.provisioning.api.ProvisioningService;
+import oracle.iam.provisioning.exception.ApplicationInstanceNotFoundException;
+import oracle.iam.provisioning.exception.GenericAppInstanceServiceException;
+import oracle.iam.provisioning.exception.GenericProvisioningException;
+import oracle.iam.provisioning.exception.UserNotFoundException;
+import oracle.iam.provisioning.vo.Account;
+import oracle.iam.provisioning.vo.ApplicationInstance;
+
+public class AccountStatus {
+	private static OIMClient oimClient=null;
+	
+	
+	private boolean checkStatus(String userLogin, String appInstanceName) throws AccessDeniedException, UserNotFoundException, ApplicationInstanceNotFoundException, GenericProvisioningException, GenericAppInstanceServiceException {
+		// TODO Auto-generated method stub
+		
+		ApplicationInstanceService appInstService;
+     ProvisioningService provisionService;
+     appInstService =
+              (ApplicationInstanceService)oimClient.getService(ApplicationInstanceService.class);
+     provisionService =
+              (ProvisioningService)oimClient.getService(ProvisioningService.class);
+      ApplicationInstance appInstance;
+          appInstance =
+                  appInstService.findApplicationInstanceByName(appInstanceName);
+        
+          if(provisionService.isApplicationInstanceProvisionedToUser(userLogin,appInstance)==true){
+        	  System.out.println("if");
+                    return true;                                                    
+              }
+       else{
+              return false;
+          }
+	}
+
+	public static void main(String[] args) throws IOException, AccessDeniedException, UserNotFoundException, ApplicationInstanceNotFoundException, GenericProvisioningException, GenericAppInstanceServiceException {
+		// TODO Auto-generated method stub
+		AccountStatus accountStatus=new AccountStatus();
+		Oimconnection oimconnection=new Oimconnection();
+		try{
+		oimClient=oimconnection.Oimconnection();
+		}catch(Exception e){
+			System.out.println("exce:"+e);
+			
+		}
+		finally{
+			 if(oimClient != null)
+	            {
+	                oimClient.logout();
+	            }
+		}
+		SearchUser su=new SearchUser();
+		String appinstancename="SAPPRM";
+		//reading userLogin id's to check existence in oim
+		BufferedReader br=new BufferedReader(new FileReader("C://Oimapi/AccountStatus.txt"));
+		boolean b=false,as=false;
+		String userLogin=null;
+		while((userLogin=br.readLine())!=null)
+		{
+			b=su.searchUser(userLogin, oimClient);
+			System.out.println("returned from search method"+b);
+			if(b)
+			{
+			as=accountStatus.checkStatus(userLogin,appinstancename);
+			System.out.println("returned from check method" + as);
+			
+			if(as)
+			{
+				System.out.println(userLogin  + "Provisioned");
+			}
+			else{
+				System.out.println(userLogin  + "Provisioning");
+			
+			}
+			
+			}
+			else{
+				System.out.println(userLogin+ "not found");
+			}
+			
+			
+		}
+		
+		
+		
+		
+
+	}
+
+	
+
+}
+
+
+
+
+/////Add process task
+
+
+package com.ril;
+
+import Thor.API.Exceptions.tcAPIException;
+import Thor.API.Exceptions.tcColumnNotFoundException;
+import Thor.API.Operations.TaskDefinitionOperationsIntf;
+import Thor.API.Operations.tcProvisioningOperationsIntf;
+import Thor.API.tcResultSet;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.List;
+
+import oracle.iam.identity.usermgmt.api.UserManager;
+import oracle.iam.identity.usermgmt.api.UserManagerConstants;
+import oracle.iam.identity.usermgmt.vo.User;
+import oracle.iam.platform.OIMClient;
+import oracle.iam.platform.entitymgr.vo.SearchCriteria;
+import oracle.iam.provisioning.api.ProvisioningConstants;
+import oracle.iam.provisioning.api.ProvisioningService;
+import oracle.iam.provisioning.vo.Account;
+
+/**
+ * Uses OIM APIs to manually call a process task instance on a given application
+ * instance on a user.
+ * @author rayedchan
+ */
+public class AddProcessTask 
+{
+    // Logger
+    //private static final ODLLogger LOG = ODLLogger.getODLLogger(AddProcessTask.class.getName());
+    
+    // Change variables accordingly
+    public static final String OIM_HOSTNAME = "pdoim01.bss.jio.com";
+    public static final String OIM_PORT = "14000"; // For SSL, use 14001; For non-SSL, use 14000
+    public static final String OIM_PROVIDER_URL = "t3://"+ OIM_HOSTNAME + ":" + OIM_PORT; // For SSL, use t3s protocol; For non-SSL, use t3 protocol
+    public static final String AUTHWL_PATH = "C://Softwares//designconsole//config//authwl.conf";
+    public static final String APPSERVER_TYPE = "wls"; // WebLogic Server
+    public static final String FACTORY_INITIAL_TYPE = "weblogic.jndi.WLInitialContextFactory";
+    public static final String OIM_ADMIN_USERNAME = "xelsysadm";
+    public static final String OIM_ADMIN_PASSWORD = "JioIAM0315";
+    
+    public static void main(String[] args)
+    {        
+        // OIM Client
+        OIMClient oimClient = null;
+        tcProvisioningOperationsIntf provOps = null;
+        TaskDefinitionOperationsIntf taskDefOps =null; 
+        
+        try
+        {
+            // Set system properties required for OIMClient
+            System.setProperty("java.security.auth.login.config", AUTHWL_PATH);
+            System.setProperty("APPSERVER_TYPE", APPSERVER_TYPE);
+
+            // Create an instance of OIMClient with OIM environment information 
+            Hashtable<String, String> env = new Hashtable<String, String>();
+            env.put(OIMClient.JAVA_NAMING_FACTORY_INITIAL, FACTORY_INITIAL_TYPE);
+            env.put(OIMClient.JAVA_NAMING_PROVIDER_URL, OIM_PROVIDER_URL);
+            
+            // Establish an OIM Client
+            oimClient = new OIMClient(env);
+            
+            // Login to OIM with System Administrator Credentials
+            oimClient.login(OIM_ADMIN_USERNAME, OIM_ADMIN_PASSWORD.toCharArray());
+            
+            // Get API Service
+            UserManager usrMgr = oimClient.getService(UserManager.class);
+            ProvisioningService provService = oimClient.getService(ProvisioningService.class);
+            provOps = oimClient.getService(tcProvisioningOperationsIntf.class);
+            taskDefOps = oimClient.getService(TaskDefinitionOperationsIntf.class);
+            
+            // Change variables accordingly
+           
+            String userLogin = null; // OIM User Login
+            String resourceObjectName = "JioBeat User";  // Resource Object Name,Opigno Partner,Change State Code
+            String procTaskName = "ManagerEmailid Updated";     // Managerid Updated,Managername Updated,ManagerEmailid Updated   //Change Distribution Center	,Change L1 EMailID,Change L1 Name,Add Position,Managerid Updated,Change Functional Manager,Change Job Desc,Change Job Role Code
+            BufferedReader br=new BufferedReader(new FileReader("C://Oimapi//Addprocesstask.txt"));
+            while((userLogin=br.readLine())!=null)
+            {
+            System.out.println("in while loop"+userLogin);
+                                                
+            // Get user's details
+            boolean useUserLogin = true;
+            HashSet<String> retAttrs = new HashSet<String>();
+            retAttrs.add(UserManagerConstants.AttributeName.USER_KEY.getId()); // usr_key
+            User user = usrMgr.getDetails(userLogin, retAttrs, useUserLogin);
+           // LOG.log(ODLLevel.INFO, "User: {0}", new Object[]{user});
+            String userKey = user.getId(); // Get usr_key
+
+            // Get user's resource accounts for a specific resource object
+            SearchCriteria criteria = new SearchCriteria(ProvisioningConstants.AccountSearchAttribute.OBJ_NAME.getId(), resourceObjectName, SearchCriteria.Operator.EQUAL);       
+            List<Account> accounts = provService.getAccountsProvisionedToUser(userKey, criteria, null, useUserLogin);
+          //  LOG.log(ODLLevel.INFO, "Total Accounts: {0}", new Object[]{accounts.size()});
+            
+            // Iterate User's accounts of a specific resource object
+            for(Account resourceAcct: accounts)
+            {
+                String accountId = resourceAcct.getAccountID(); // OIU_KEY
+                String procInstFormKey = resourceAcct.getProcessInstanceKey(); // (ORC_KEY) Process Form Instance Key 
+                String appInstName = resourceAcct.getAppInstance().getApplicationInstanceName(); // Application Instance Name
+                //LOG.log(ODLLevel.INFO, "Account Id: {0}", new Object[]{accountId});
+               // LOG.log(ODLLevel.INFO, "Process Instance Form Key: {0}", new Object[]{procInstFormKey});
+               // LOG.log(ODLLevel.INFO, "Application Instance Name: {0}", new Object[]{appInstName});
+                
+                // Get a specific process task 
+                HashMap<String,String> filter = new HashMap<String,String>();
+                filter.put("Process Definition.Tasks.Task Name", procTaskName);
+                tcResultSet results = taskDefOps.getTaskDetail(Long.valueOf(procInstFormKey), filter);
+                int rows = results.getTotalRowCount();
+                String procDefTaskKey = null;
+                
+                // Should only be one since Process Task Name is unique
+                for(int i = 0; i < rows; i++)
+                {
+                    results.goToRow(i);
+                    procDefTaskKey = results.getStringValue("Process Definition.Tasks.Key"); // MIL_KEY
+                }
+                
+               // LOG.log(ODLLevel.INFO, "Process Definition Task Key: {0}", new Object[]{procDefTaskKey});
+                try{
+                if(procDefTaskKey != null)
+                {         
+                    // Call a process task directly on an application instance
+                    long schKey = provOps.addProcessTaskInstance(Long.valueOf(procDefTaskKey), Long.valueOf(procInstFormKey));
+                   // LOG.log(ODLLevel.INFO, "Process Task Instance Key: {0}", new Object[]{schKey});
+                }}catch(Thor.API.Exceptions.tcAPIException e)
+                {
+                    System.out.println("login:");	
+                    }
+            }
+            }
+        } 
+        
+        
+        catch (Exception ex) 
+        {
+            System.out.println("exception"+ex);
+        } 
+        
+        finally
+        {
+            // Close tc* service
+            if(provOps != null)
+            {
+                provOps.close();
+            }
+            
+            if(taskDefOps != null)
+            {
+                taskDefOps.close();
+            }
+            
+            // Logout user from OIM client
+            if( oimClient != null)
+            {
+                oimClient.logout();
+            } 
+        }
+    }
+    
+    /**
+     * Prints the records of a tcResultSet.
+     * @param  tcResultSetObj  tcResultSetObject
+     * @throws tcAPIException
+     * @throws tcColumnNotFoundException 
+     */
+    public static void printTcResultSetRecords(tcResultSet tcResultSetObj) throws tcAPIException, tcColumnNotFoundException
+    {
+        String[] columnNames = tcResultSetObj.getColumnNames();
+        int numRows = tcResultSetObj.getTotalRowCount();
+        
+        for(int i = 0; i < numRows; i++)
+        {
+            HashMap<String,String> record = new HashMap<String,String>();
+            tcResultSetObj.goToRow(i);
+            for(String columnName: columnNames)
+            {
+                record.put(columnName, tcResultSetObj.getStringValue(columnName));
+            }
+            
+           // LOG.log(ODLLevel.INFO, "{0}", new Object[]{record});
+        }
+    }
+}
+
+
+
+
+////////////Bulk Account modification 
+package com.ril;
+
+
+
+
+/**
+ * Bulk Update parent form of a resource account on a user.
+ */
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+
+import oracle.iam.identity.exception.NoSuchUserException;
+import oracle.iam.identity.exception.UserLookupException;
+import oracle.iam.identity.usermgmt.api.UserManager;
+import oracle.iam.identity.usermgmt.api.UserManagerConstants;
+import oracle.iam.identity.usermgmt.vo.User;
+import oracle.iam.platform.OIMClient;
+import oracle.iam.platform.entitymgr.vo.SearchCriteria;
+import oracle.iam.provisioning.api.ProvisioningConstants;
+import oracle.iam.provisioning.api.ProvisioningService;
+import oracle.iam.provisioning.exception.AccountNotFoundException;
+import oracle.iam.provisioning.exception.GenericProvisioningException;
+import oracle.iam.provisioning.exception.UserNotFoundException;
+import oracle.iam.provisioning.vo.Account;
+import oracle.iam.provisioning.vo.AccountData;
+
+
+public class BulkModificationAccount
+{
+    // Environment specfic constants
+    public static final String OIM_HOSTNAME = "pdoim02.bss.jio.com";
+    public static final String OIM_PORT = "14000";
+  public static final String OIM_PROVIDER_URL ="t3://" + OIM_HOSTNAME + ":" + OIM_PORT;
+    public static final String OIM_USERNAME = "xelsysadm";
+    public static final String OIM_PASSWORD = "JioIAM0315";
+    public static final String OIM_CLIENT_HOME ="C:\\Softwares\\designconsole";
+    public static final String AUTHWL_PATH =OIM_CLIENT_HOME + "\\config\\authwl.conf";
+     
+    // Constants for testing
+    
+    public static final String RESOURCE_OBJECT_NAME = "CCSAPPRM";  //WebExpress
+     
+   //public static final ODLLogger logger = ODLLogger.getODLLogger(BulkModificationAccount.class.getName());
+    public static ProvisioningService provOps = null;
+    public static UserManager usrMgrOps = null;
+     
+    public static void main (String[] args) 
+    {
+        OIMClient oimClient = null;
+ 
+        try
+        {
+            // Set system properties required for OIMClient
+            System.setProperty("java.security.auth.login.config", AUTHWL_PATH);
+            System.setProperty("APPSERVER_TYPE", "wls");
+ 
+            // Create an instance of OIMClient with OIM environment information
+            Hashtable env = new Hashtable();
+            env.put(OIMClient.JAVA_NAMING_FACTORY_INITIAL,"weblogic.jndi.WLInitialContextFactory");
+            env.put(OIMClient.JAVA_NAMING_PROVIDER_URL, OIM_PROVIDER_URL);
+            oimClient = new OIMClient(env);
+ 
+            // Login to OIM with the approriate credentials
+            try{
+            oimClient.login(OIM_USERNAME, OIM_PASSWORD.toCharArray());
+                System.out.println("authentication success");
+            }catch(Exception e) {
+                System.out.println("authentication failed");
+            }
+            // Get OIM services
+            provOps = oimClient.getService(ProvisioningService.class);
+            usrMgrOps = oimClient.getService(UserManager.class);
+             
+            File inputFile;
+            inputFile = new File("C:\\Oimapi\\Accountmodification.txt");
+            FileReader fReader = new FileReader(inputFile);
+            BufferedReader bReader = new BufferedReader(fReader);
+            
+            String readData = bReader.readLine();
+            int lineCount = 0;
+            while (readData != null) {
+             
+                HashMap<String, Object> userAttributeValueMap =
+                    new HashMap<String, Object>();
+                lineCount++;
+                readData = bReader.readLine();
+                if (lineCount >= 1) {
+                            
+                    int i = 0;
+                    while (readData != null) {
+                        
+                        String[] keyValue = readData.trim().split(",");
+                        System.out.println(keyValue[0]+","+keyValue[1]);
+                        String s[] = {"UD_CCSAPPRM_ASSOCIATE_EXTID","UD_CCSAPPRM_EMAIL"};
+                        //"UD_CMRCUSR_SZUSERID","UD_CMRCUSR_SZMOBILE","ud_cmrcusr_szsupervisoremploye","UD_CMRCUSR_SZSUPERVISORCODE","UD_CMRCUSR_SZWORKSTATE","UD_CMRCUSR_SZADDRESS2","UD_CMRCUSR_SZCITY","UD_CMRCUSR_SZUSERCODE","UD_CMRCUSR_SZUSERNAME","UD_CMRCUSR_SZEMAIL","UD_CMRCUSR_SZEMPLOYMENTSTATUS","UD_CMRCUSR_SZLOCPINCODE","UD_CMRCUSR_SZJOBROLECODE"
+                        //"ud_sapprm_location_type"
+                        //ud_sapprm_location_code,ud_sapprm_associate_extid,ud_sapprm_company_id
+                        //"UD_IN10S_USERTYPE","UD_IN10S_USERLOGIN", "UD_IN10S_STATE","RVCZONE","UD_IN10S_DISTCENTER","ud_mntn_dlr_user_id","UD_MNTN_DLR_ROLE_ID","ud_mntn_dlr_primary_contact"
+                            //"UD_WBXPRESS_USERTYPE"
+                            for (int j = 0; j < s.length; j++) {
+
+                            userAttributeValueMap.put(s[j], keyValue[j]);
+                            }
+             
+                            // Get usr_key
+                            String USER_LOGIN = keyValue[0];
+                            String userKey = getUserKeyByUserLogin(USER_LOGIN);
+             
+                            // Get user's resource account
+                        
+                            Account resourceAccount = getUserResourceAccount(userKey, RESOURCE_OBJECT_NAME);
+                            modifyUserResourceAccountParentData(userKey, resourceAccount, userAttributeValueMap);
+                       
+                            
+                            readData = bReader.readLine();
+                    }
+                }
+            }
+        }
+ 
+        catch (Exception ex) {} 
+ 
+        finally
+        {
+            // Logout user from OIMClient
+            if (oimClient != null) { oimClient.logout();} 
+        }
+    }
+     
+
+    public static Account getUserResourceAccount(String userKey, String resourceObjectName) throws UserNotFoundException, GenericProvisioningException
+    {
+        boolean populateAccountData = true;
+        HashMap<String,Object> configParams = new HashMap<String,Object>();
+        SearchCriteria criteria =  new SearchCriteria(ProvisioningConstants.AccountSearchAttribute.OBJ_NAME.getId(), resourceObjectName, SearchCriteria.Operator.EQUAL);
+        List<Account> accounts = provOps.getAccountsProvisionedToUser(userKey, criteria , configParams , populateAccountData);
+         
+        for (Account account : accounts) 
+        {
+            String accountId = account.getAccountID();
+            String appInstName = account.getAppInstance().getApplicationInstanceName();
+            Map<String, Object> accountData = account.getAccountData().getData();
+            String accountStatus = account.getAccountStatus();
+          //  logger.log(ODLLevel.NOTIFICATION, "Account Id: [{0}], Application Instance Name: [{1}], Account Status: [{2}], Account Data:[{3}]", new Object[]{accountId, appInstName, accountStatus, accountData});
+             
+            // Only return enabled, provisioned, or disabled account
+            if(ProvisioningConstants.ObjectStatus.PROVISIONED.getId().equals(accountStatus) || ProvisioningConstants.ObjectStatus.PROVISIONING.getId().equals(accountStatus) || ProvisioningConstants.ObjectStatus.ENABLED.getId().equals(accountStatus) || ProvisioningConstants.ObjectStatus.DISABLED.getId().equals(accountStatus)) 
+            {
+               // logger.log(ODLLevel.NOTIFICATION, "Return Account Id: [{0}]", new Object[]{accountId});
+                return account;
+            }
+        }
+         
+        return null;
+    }
+    
+     
+
+    public static String getUserKeyByUserLogin(String userLogin) throws NoSuchUserException, UserLookupException
+    {
+        boolean userLoginUsed = true;
+        HashSet<String> attrsToFetch = new HashSet<String>();
+        attrsToFetch.add(UserManagerConstants.AttributeName.USER_KEY.getId());
+        attrsToFetch.add(UserManagerConstants.AttributeName.USER_LOGIN.getId());
+        User user = usrMgrOps.getDetails(userLogin, attrsToFetch, userLoginUsed);
+       // logger.log(ODLLevel.NOTIFICATION, "User Details: {0}", new Object[]{user});
+        return user.getEntityId();
+    }
+     
+
+    public static void modifyUserResourceAccountParentData(String userKey, Account resourceAccount, HashMap<String, Object> modAttrs) throws AccountNotFoundException, GenericProvisioningException 
+    {
+        // Stage resource account modifcations
+       
+        String accountId  = resourceAccount.getAccountID();
+        String processFormInstanceKey = resourceAccount.getProcessInstanceKey();
+        Account modAccount = new Account(accountId, processFormInstanceKey, userKey);
+       // logger.log(ODLLevel.NOTIFICATION, "Account Id: [{0}], Process Form Instance Key: [{1}]", new Object[]{accountId, processFormInstanceKey});
+     
+        String formKey = resourceAccount.getAccountData().getFormKey();
+        String udTablePrimaryKey = resourceAccount.getAccountData().getUdTablePrimaryKey();
+        AccountData accountData = new AccountData(formKey, udTablePrimaryKey , modAttrs);
+        //logger.log(ODLLevel.NOTIFICATION, "Form Key: [{0}], UD Table Primary Key: [{1}]", new Object[]{formKey, udTablePrimaryKey});
+         
+        // Set necessary information to modified account
+        modAccount.setAccountData(accountData);
+           
+        modAccount.setAppInstance(resourceAccount.getAppInstance());
+        
+ 
+        // Modify resource account
+       
+        provOps.modify(modAccount);
+        
+       // logger.log(ODLLevel.NOTIFICATION, "Modification successful.");
+    }
+}
+
+
+////////////Retry
+
+package com.ril;
+
+/*
+ * Java program for provisioning retry task.
+ */
+
+import Thor.API.Operations.tcProvisioningOperationsIntf;
+import Thor.API.tcResultSet;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Map;
+
+import javax.naming.Context;
+
+import javax.security.auth.login.LoginException;
+
+import oracle.iam.platform.OIMClient;
+
+public class RetryTask {
+    public static void main(String[] args) throws LoginException {
+        String ctxFactory = "weblogic.jndi.WLInitialContextFactory";
+       // OIMConnect oimConn = new OIMConnect();
+        OIMClient oimClient = null;
+        Hashtable<String, String> env = new Hashtable<String, String>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, ctxFactory);
+        env.put(Context.PROVIDER_URL, "t3://pdoim01.bss.jio.com:14000");
+
+        // logger.debug("Setting properties...");
+        System.setProperty("OIM.AppServerType", "wls");
+        System.setProperty("APPSERVER_TYPE", "wls");
+        System.setProperty("java.security.auth.login.config", "C://Softwares//designconsole//config//authwl.conf");
+        oimClient = new OIMClient(env);     
+        oimClient.login("xelsysadm", "JioIAM0315".toCharArray());
+
+        try {
+
+            tcProvisioningOperationsIntf prvoOps = oimClient.getService(tcProvisioningOperationsIntf.class);
+            
+            //Airwatch2, RPOS, PRM Maintain Dealer,IN10s
+            
+            String resourceName ="Opigno Employee";
+            String taskName = "Create User";   //Mobile Updated, Create User
+            //String taskStatus = "";//
+
+            String userIDSearchCriteria[] ={"67549228","67549218","67549231"};
+            //String userIDSearchCriteria[] = {"068114*","068115*"};'};
+
+            for (int searchCounter = 0; searchCounter < userIDSearchCriteria.length; searchCounter++) {
+                Map<String, Object> filter = new HashMap<String, Object>();
+                filter.put("Objects.Name", resourceName);
+                filter.put("Process Definition.Tasks.Task Name", taskName);
+                //Calendar cal = Calendar.getInstance();
+                //cal.setTimeInMillis(1457102555000L);
+                /*cal.set(Calendar.DAY_OF_MONTH, 4);
+                cal.set(Calendar.MONTH, Calendar.MARCH);
+                cal.set(Calendar.YEAR, 2016);*/
+                
+                filter.put("Users.User ID", userIDSearchCriteria[searchCounter]);
+                //filter.put("Process Instance.Create", cal.getTime());
+                String taskStaus[] = new String[] {  };
+
+                tcResultSet resultSet = prvoOps.findAllOpenProvisioningTasks(filter, taskStaus);
+
+                int rowCount = resultSet.getRowCount();
+                //System.out.println(rowCount);
+
+                String taskResult = null;
+                long taskKey = 0;
+                String userLogin = "";
+
+                for (int i = 0; i < rowCount; i++) {
+                    resultSet.goToRow(i);
+                    userLogin = resultSet.getStringValue("Process Instance.Task Information.Target User");
+                    taskKey = resultSet.getLongValue("Process Instance.Task Details.Key");
+                    //taskResult = prvoOps.retryTasks(arg0)
+                    //System.out.println(userLogin + "::" + taskKey + "::" + taskResult);
+                    String cols[] = resultSet.getColumnNames();
+                    /*for(int j=0;j<cols.length;j++) {
+                        System.out.println(cols[j] + ":" + resultSet.getStringValue(cols[j]));
+                    }*/
+                    //Date d = resultSet.getDate("Process Instance.Task Details.Creation Date");
+                    //cal.setTime(d);
+                    //System.out.println(d.getTime());
+                    
+                    //System.out.println(d.getTime());
+                    //System.out.println(cal.get(Calendar.HOUR_OF_DAY)+":"+cal.get(Calendar.MINUTE)+":"+cal.get(Calendar.SECOND));
+                }
+                System.out.println("userLogin::" + userLogin + "::taskKey:" + taskKey);
+                if(taskKey!=0) {
+                    try {
+                        taskResult = prvoOps.retryTask(taskKey);
+                        System.out.println(taskResult);
+                    } catch (Exception e) {
+                        // TODO: Add catch code
+                        System.err.println(e.getMessage());
+                    }
+                    
+                }
+            }
+
+            //taskResult = prvoOps.retryTask(294368);
+            //System.out.println(taskResult);
+
+        } catch (Exception e) {
+            System.err.println(e.getMessage());
+        } finally {
+            if (oimClient != null) {
+                oimClient.logout();
+            }
+        }
+    }
+}
+
+
+//////Role assignment
+///*
+//* 
+// *Class Description - This scheduler can be used in case of granting a Role to bulk users. 
+// *                    This requires one csv file in which User Logins will be there to which the role to be granted. 
+// *                    The csv’s User Logins should be separated by comma. For example: UserLogin1,UserLogin2,UserLogin3…
+//*
+//*Description Ended
+//**/
+package com.ril;
+
+import Thor.API.Exceptions.tcAPIException;
+import Thor.API.Exceptions.tcColumnNotFoundException;
+import Thor.API.Operations.tcGroupOperationsIntf;
+import Thor.API.tcResultSet;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.Set;
+
+import oracle.iam.identity.exception.NoSuchUserException;
+import oracle.iam.identity.exception.SearchKeyNotUniqueException;
+import oracle.iam.identity.exception.UserLookupException;
+import oracle.iam.identity.rolemgmt.api.RoleManager;
+import oracle.iam.identity.usermgmt.api.UserManager;
+import oracle.iam.identity.usermgmt.vo.User;
+import oracle.iam.platform.OIMClient;
+import oracle.iam.platform.Platform;
+import oracle.iam.platform.kernel.ValidationFailedException;
+
+
+
+
+public class RoleAssign {
+    String className="RoleAssignment";
+    static OIMClient provOimClient;
+    static Integer uscount;
+    static String tempretval;
+    public RoleAssign() {
+        super();
+    }
+
+    public static void main(String args[]) {
+        try {
+        	Oimconnection conn=new Oimconnection();
+            provOimClient = conn.Oimconnection();
+        RoleManager rmgr = null;
+        rmgr = provOimClient.getService(RoleManager.class);
+        uscount = 0;
+        String csvPath = "C:\\Oimapi\\RoleAssignmentLogins.txt";  //C:\Oimapi
+        String userLogins = getCsv(csvPath);
+            
+        String roleKey = getGroupKey("OpignoPartner");// RPOSUser,PRMMaintainDealerUsers, In10s, Airwatch2,CCUserRole
+            
+        Set<String> userKeys = null;
+        userKeys = new HashSet<String>();
+        String tempUserKey = null;
+        tempretval = "end";
+            for (String retval : userLogins.split(",")) {
+                tempUserKey = getUserKey(retval);
+                userKeys.add(tempUserKey);
+                if(!rmgr.isRoleGranted(roleKey, tempUserKey, true))
+                {
+                    System.out.println("Granting role to UserLogin = "+retval+" and Role key is = "+roleKey);
+                    rmgr.grantRole(roleKey, userKeys);
+                }
+                else {
+                    System.out.println("Role is already granted to UserLogin = "+retval);
+                }
+                userKeys.remove(tempUserKey);
+                uscount++;
+                tempretval = retval;
+            }
+        System.out.println("Success");
+        } catch (ValidationFailedException e) {
+            System.out.println("Exception Caught with message :"+e.getMessage()+". The number of records assigned is "+uscount);
+            e.printStackTrace();
+        } catch (Exception e) {
+            System.out.println("Exception Caught with message :"+e.getMessage()+". The number of records assigned is "+uscount);
+            e.printStackTrace();
+        }
+        finally{
+            System.out.println("Record successfully executed till userLogin : "+tempretval);
+            provOimClient.logout();
+        }
+    }
+
+    public static String getCsv(String filePath) {
+        
+        Scanner scanner = null;
+        String returnUserList = "";
+       
+        try {
+            scanner = new Scanner(new File(filePath));
+            scanner.useDelimiter("|");
+           
+            while (scanner.hasNext()) {
+                returnUserList = returnUserList.concat(scanner.next());
+            }
+            System.out.println("Return User List is : "+returnUserList);
+           
+            scanner.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return returnUserList;
+    }
+
+    public static String getGroupKey(final String groupName) {
+        tcGroupOperationsIntf groupManager =
+            provOimClient.getService(tcGroupOperationsIntf.class);
+        Map condition = new HashMap();
+        condition.put("Groups.Group Name", groupName);
+        tcResultSet rs;
+        String groupKey = null;
+        try {
+            rs = groupManager.findGroups(condition);
+            groupKey = rs.getStringValue("Groups.Key");
+        } catch (tcAPIException e) {
+            e.printStackTrace();
+        } catch (tcColumnNotFoundException e) {
+            e.printStackTrace();
+        }
+        return groupKey;
+    }
+
+    public static String getUserKey(final String userLogin) {
+        UserManager userManager = null;
+        String userKey = null;
+        try {
+            if (userLogin == null) {
+                System.out.println("ClientOIM ::  getUserKey :: UserLogin is either null or empty");
+            } else {
+                final Set<String> returnMap = new HashSet<String>();
+
+                /* Initialize the User Manager Service */
+                userManager = provOimClient.getService(UserManager.class);
+
+                /* Check whether User Manager Service properly initialized */
+                if (userManager != null) {
+                    /* Get User object belonging to the User Key */
+                    final User user =
+                        userManager.getDetails("User Login", userLogin,
+                                               returnMap);
+                    /* If User object is not null then retrieve User Login */
+                    if (user != null) {
+                        userKey = user.getEntityId();
+                    }
+                }
+            }
+
+        } catch (NoSuchUserException e) {
+            System.out.println("ClientOIM ::  getUserKey :: NoSuchUserException :: " +
+                               e.getMessage());
+        } catch (UserLookupException e) {
+            System.out.println("ClientOIM ::  getUserKey :: UserLookupException :: " +
+                               e.getMessage());
+        } catch (SearchKeyNotUniqueException e) {
+            System.out.println("ClientOIM ::  getUserKey :: SearchKeyNotUniqueException :: " +
+                               e.getMessage());
+        } catch (Exception e) {
+            System.out.println("ClientOIM ::  getUserKey :: Exception :: " +
+                               e.getMessage());
+        }
+        return userKey;
+    }
+
+}
+
+
+
+
+
+/////////////User modification
+
+
+package com.ril;
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.ejb.EJBException;
+
+import oracle.iam.identity.exception.AccessDeniedException;
+import oracle.iam.identity.exception.NoSuchUserException;
+import oracle.iam.identity.exception.UserLookupException;
+import oracle.iam.identity.exception.UserModifyException;
+import oracle.iam.identity.exception.ValidationFailedException;
+import oracle.iam.identity.usermgmt.api.UserManager;
+import oracle.iam.identity.usermgmt.vo.User;
+import oracle.iam.platform.OIMClient;
+import weblogic.ejb.container.ejbc.EJBCException;
+
+public class UserProfileModification {
+	private static OIMClient oimclient;
+	private static UserManager umgr;
+	
+	public void modifyUser() throws IOException, EJBCException{
+	     
+	          
+	    	BufferedReader br =new BufferedReader(new FileReader("C://Oimapi/AAA.txt"));
+	    	String attrvalues=null;
+	    	String[] data=null;
+	    	String[] s={"User Login","L1Name","L1EmailID"}; //L1EmailID,L1Name
+	    
+	          HashMap<String, Object> userAttributeValueMap = new HashMap<String, Object>();
+	          br.readLine();
+	          while((attrvalues=br.readLine())!=null){
+	        	  System.out.println("in while loop");
+	        	  data=attrvalues.trim().split(",");
+	        	  System.out.println(data[0]);
+	        	  
+	        	  for (int j = 0; j < s.length; j++) {
+	        		  //System.out.println("in for loop");
+try{
+                      userAttributeValueMap.put(s[j], data[j]);
+}
+catch(EJBException e)
+{
+	
+}
+                  }
+	        	  
+	        	  
+	        	  
+	        	  User retrievedUser = searchUser(data[0]);
+	        	  User user=null;
+	        	  if(retrievedUser !=null){
+	        		  try{
+	        		 user = new User(retrievedUser.getEntityId(),userAttributeValueMap);  
+	        		  }catch(Exception e){}
+			           
+	        		  try {
+                          umgr.modify(user);
+                          System.out.println("successfully modified"+data[0]);
+                      } catch (UserModifyException e) {
+                          System.out.println("Modification error");
+                      } catch (NoSuchUserException e) {
+                          System.out.println("Modification error");
+                      } catch (ValidationFailedException e) {
+                          System.out.println("Modification error");
+                      } 
+	        	  }
+	        	  else{
+	        		  System.out.println("user not found" +data[0]);
+	        	  }
+		           
+	        	  
+	          }
+	                          
+	          
+	         
+	     
+	}
+	public User searchUser(String userId) throws EJBCException {
+		 
+        Set<String> resAttrs = new HashSet<String>();
+        User user = null;
+        try {
+              user = umgr.getDetails(userId, resAttrs, true);
+        } catch (NoSuchUserException e) {
+              e.printStackTrace();
+        } catch (UserLookupException e) {
+              e.printStackTrace();
+        } catch (AccessDeniedException e) {
+              e.printStackTrace();
+        }          
+        return user;            
+        }
+
+	public static void main(String[] args) throws FileNotFoundException, EJBCException {
+		// TODO Auto-generated method stub
+		Oimconnection con=new Oimconnection();
+		oimclient=con.Oimconnection();
+		 umgr=oimclient.getService(UserManager.class);
+		
+		UserProfileModification upm=new UserProfileModification();
+		try {
+			upm.modifyUser();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		
+		}
+		
+	
+
+	}
+
+}
+
+
+
+////////Update lookup
+
+package com.ril;
+
+import java.util.Hashtable;
+import oracle.iam.platform.OIMClient;
+import Thor.API.tcResultSet;
+import Thor.API.Operations.tcLookupOperationsIntf;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+public class UpdateLookup {
+
+private static final String OIM_URL = "t3://repoim1.jiolabs.com:14000";
+private static final String AUTH_CONF = "C://Softwares//designconsole//config//authwl.conf";
+private static final String OIM_USERNAME = "xelsysadm";
+private static final String OIM_PASSWORD = "JioIAM0315";
+private static OIMClient oimClient = null;
+Hashtable env = new Hashtable();
+public UpdateLookup() {
+    try {
+        env.put(OIMClient.JAVA_NAMING_FACTORY_INITIAL,"weblogic.jndi.WLInitialContextFactory");
+        env.put(OIMClient.JAVA_NAMING_PROVIDER_URL, OIM_URL);
+        System.setProperty("java.security.auth.login.config", AUTH_CONF);
+        System.setProperty("OIM.AppServerType", "wls");
+        System.setProperty("APPSERVER_TYPE", "wls");
+        oimClient = new OIMClient(env);
+        oimClient.login(OIM_USERNAME, OIM_PASSWORD.toCharArray());
+        System.out.println("Connected");
+        } catch (Exception e) {
+            e.printStackTrace();
+    }
+}
+public void addLookupEntry(String LookupKey,String LookupValue) {
+    try {
+        tcLookupOperationsIntf lookupOps = oimClient.getService(tcLookupOperationsIntf.class);
+            //String lookupName = "Lookup.Test Lookup";
+            //lookupOps.addLookupCode(lookupName);
+        lookupOps.addLookupValue("Lookup.Airwatch.Jobrole", LookupKey,LookupValue, "", "");
+        //Lookup.SAPPRM.POSITIONJOB_LOCATIONTYPE
+        System.out.println(LookupKey+ "  "+LookupValue+  "Added");
+        } catch (Exception e) {
+        System.out.println("Value is already exit");
+    }
+}
+
+public void displayLookup(String lookupname) {
+     try {
+        tcLookupOperationsIntf lookupOps = oimClient.getService(tcLookupOperationsIntf.class);
+        tcResultSet values = lookupOps.getLookupValues(lookupname);
+        for (int i = 0; i < values.getRowCount(); i++) {
+        values.goToRow(i);
+        System.out.print(values.getStringValue("Lookup Definition.Lookup Code Information.Decode"));
+        System.out.println(","+ values.getStringValue("Lookup Definition.Lookup Code Information.Code Key"));
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+public static void main(String args[]) throws FileNotFoundException,
+                                                  IOException {
+        UpdateLookup obj = new UpdateLookup();
+    
+       File inputFile;
+        inputFile = new File("C:\\Oimapi\\Lookupdata.txt");
+        FileReader fReader;
+        fReader = new FileReader(inputFile);
+        BufferedReader bReader = new BufferedReader(fReader);
+        String readData = bReader.readLine();
+        String[] s = null;
+         while ((readData=bReader.readLine()) != null) {
+         
+            s= readData.split(",");
+            obj.addLookupEntry(s[0], s[1]);     
+        }
+    System.out.println("Lookup values added"); 
+    
+    
+    
+    System.out.println("Display lookup");
+    obj.displayLookup("Lookup.Airwatch.Jobrole");
+    }
+}
+
+
+
+//////////////SQL Queries 
+
+select usr_create,usr_login,usr_udf_cc_referenceid from usr where usr_udf_cc_referenceid in ('80003','80004','80005','80006','80007','80013','80014');
+select usr_mobile,usr_udf_functional_manager,usr_udf_l1emailid,usr_udf_r4gstate,usr_udf_officeaddressline2,usr_udf_city_udf,usr_udf_employeedomainid,usr_display_name,usr_email,usr_udf_employmentstatustext,usr_udf_officepin,usr_udf_jobrolecode from usr
+where usr_login='55004076';
+select * from ud_cmrcusr;
+
+
+
+
+
+
+
+=============================================================================================================
+
+Know the provisioned details:
+
+
+select usr.usr_login, ost.ost_status, obj.obj_name, oiu.account_type, oiu.oiu_prov_mechanism 
+from oiu, ost, obj, usr, orc
+where oiu.ost_key = ost.ost_key
+and ost.obj_key = obj.obj_key
+and oiu.usr_key = usr.usr_key
+and obj.obj_name = 'CCSAPPRM'
+and oiu.orc_key = orc.orc_key
+and ost.ost_status = 'Provisioned'
+order by usr_login;
+
+
+
+
+
+
+
+
+
+
+
+
+select usr.usr_login, ost.ost_status, obj.obj_name, oiu.account_type, oiu.oiu_prov_mechanism 
+from oiu, ost, obj, usr, orc
+where oiu.ost_key = ost.ost_key
+and ost.obj_key = obj.obj_key
+and oiu.usr_key = usr.usr_key
+and obj.obj_name = 'PRM Maintain Dealer'
+and oiu.orc_key = orc.orc_key
+--and usr_login in ('680014173','680014174','680014175','680014176','680014255','680014256','680014251','680014254','680014257','680014250','680014249','680014252','680014253','680014184','680014177','680014179','680014181','680014187','680014185','680014180','680014183','680014182','680014186','680014178','680014247','680014246','680014241','680014248','680014240','680014245','680014242','680014239','680014244','680014243','680014317','680014310','680014318','680014314','680014320','680014312','680014307','680014316','680014315','680014313','680014311','680014305','680014304','680014306','680014308','680014309','680014319','680014263','680014266','680014260','680014258','680014262','680014267','680014268','680014264','680014272','680014271','680014259','680014261','680014265','680014270','680014269')
+and ost.ost_status = 'Provisioned'
+order by usr_login;
+
+
+
+
+
+===============================================================================================================
+
+
+Applicationwise Provisioned user data:
+
+
+select usr.usr_login User_Login,usr.usr_first_name||' '||usr.usr_last_name User_Display_Name,usr.usr_udf_sourcesystem_udf Source_System,prov_date2 Created_Date,usr.usr_pwd_expire_date Password_Expiry,usr.usr_udf_designation_udf Access_Right  from usr,
+(select oiu.usr_key usr_key, ost.ost_create prov_date, oiu.oiu_create prov_date2 from oiu, ost, obj 
+where oiu.ost_key = ost.ost_key 
+and ost.obj_key = obj.obj_key and ost.ost_status in ('Provisioned') and 
+UPPER(OBJ.OBJ_NAME) = 'WEBEXPRESS') tmp
+where usr.usr_key = tmp.usr_key;
+
+
+
+//Account status changed 
+
+update oiu set ost_key=(select ost_key from ost where obj_key=(select obj_key from obj where obj.obj_name = 'IN10S') and ost_status='Provisioned') where oiu.orc_key in (SELECT orc_key FROM ud_in10s WHERE ud_in10s_userlogin in ('0000003857')) 
+
+
+
+
+======================================
+
+
+Finding out OIM Version and Patch Information (1) Execute the following query against OIM schema. select XSD_VALUE from XSD where XSD_CODE='XL_BUILD_NUMBER'; 
+(2) .../Oracle/Middleware/Oracle_IDM1/OPatch/opatch lsinventory -details 
+
+
+select * from otp_dtl;
+select count(*) from otp_dtl where datetime > to_date('21/07/2017 18:00:00','dd/mm/yy hh24:mi:ss') and datetime < to_date('21/07/2017 18:55:00','dd/mm/yy hh24:mi:ss');  
+
+
+alter session set nls_date_format = 'DD-MM-YY HH24:MI:SS';
+
+
+select usr_login,usr_update from usr where usr_update  like sysdate;-4 and usr_udf_sourcesystem_udf in('HRMS','Z4') and usr_udf_zgroup in('JO','Z4','RR') and
+usr_udf_jobrolecode in('50545361','50408409');
+
+select usr_login from usr where 
+
+alter session set nls_date_format = 'DD-MM-YY HH24:MI:SS';
+
+
+
+select u.usr_udf_sourcesystem_udf SourceSystem,
+u.usr_login OimUserLogin,j.ud_jio_beat_employeeid JBEmpID,
+u.usr_udf_functionalmanager_udf OIMFunctionalManager,j.ud_jio_beat_managerid JBManagerID,
+u.usr_udf_statename OIMStateName,j.ud_jio_beat_state JBState,
+u.usr_udf_city_udf OIMCity,j.ud_jio_beat_city JBCity,
+u.usr_mobile OIMMobile,j.ud_jio_beat_mobileno,
+u.usr_udf_l1name OIML1Name,j.ud_jio_beat_managername,
+u.usr_udf_l1emailid OIML1EmaiID,j.ud_jio_beat_manageremailid JBManageMailID,
+u.usr_udf_jobrolecode OIMJobrolecode,j.ud_jio_beat_jobcode,
+u.usr_udf_designation_udf OIMDesignation,
+u.usr_udf_jobrolename OIMJobName,j.ud_jio_beat_jobtype JBJobType,
+u.usr_udf_distributioncenter_udf OIMDistributionCenter,j.ud_jio_beat_jccode,
+u.usr_udf_companycode_udf OIMComapnyCode,j.ud_jio_beat_companycode
+from usr u,ud_jio_beat j where u.usr_login=j.ud_jio_beat_employeeid and 
+u.usr_login in('60355850','60321899','60340303','60340249','60340265','60338807','60333561','60339120','60319838','60319102','60318112','60323172','60102888','60329402','60331526','60333519','60331958','60334868','60334952','60333701','60334071','60340546','60338781','60376039','60336164','60336365','60336296','60346462','60335966','60366105','60337785','60338275','60338226','60366126','60337896','60342022','60341655','60337308','60220467','60219541','60343678','60319961','60334707','60333761','60373193','60197732','60376729','60377408','60358769','60377470','60339992','60369301','60188940','60362757','60348669','60340506','60340325','60340851','60348788','60339441','60361537','60361062','60311638','60302400','60384863','60384862','60219792','60362089','60384704','60387370','60334864','60317556','60382957','60381416','60253096','60380908','60379149','60156159','60201909','60221809','60358317','60219647','60219682','60219791','60219834','60220005','60220198','60220228','60220283','60220096','60220119','60220487','60220693','60388555','60391245','60392677','60387917','60390497','60393141','60388574','60389078','60390728','60391428','60392250','60392304','60390764','60397728','60397381','60398140','60397360','60398206','60398147','60396765','60397947','60397528','60395927','60398321','60398129','60398323','60398355','60398341','60398331');
+
+select u.usr_udf_sourcesystem_udf SourceSystem,u.usr_login,u.usr_udf_jobrolename , j.ud_jio_beat_jobtype
+from usr u,ud_jio_beat j where u.usr_login=j.ud_jio_beat_employeeid 
+ and u.usr_udf_jobrolename <> j.ud_jio_beat_jobtype and u.usr_udf_sourcesystem_udf='HRMS' and u.usr_status='Active';
+
+select usr_login,usr_update from usr where usr_login in('10049948','20000799','10049908','55002122','55021075','10010594','10010623','55021113','60335999','55021263','55004357','55002335','55002611','55019703','55005575','55005348','55003339','55016957','55012863','55016197','55005859','55003227','55005342','55012158','55013653','37300012','55016135','55020943','55019703','55015967','55003712','67503474','55018778','55018648','55018950','67509261','10021077','55022991','10009830','10028522','55021016','10028788','10032458','55002611','55004357','55002002','55021268','55001863','55002693','55002723','55005031','55018395','55019595','55005890','55018799','55020010','55015886','55003835','55016708','55016449','55016957','55006784','55016138','55006912','55011991','55016956','55016197','55003339','55005890','55018346','60221041','67520910','67515903','67515421','67507042','67501448','67513335','55012182','55014916','55002111','60221194','60238073','55021128','55021094','55020401','55001163','55004357','55001163','55017984','55018556','55016302','55016050','55020210','55004326','55016867','55004089','55017814','55007004','55017573','55016867','55020616','55019270','55016456','55016526','55015795','55016026','55018491','55019311','55019076','55017992','67501597','67507042','67501660','55017674','67509448','55021477','55021638','60364926','67529194','10025832','10049929','67517433','55000251','60221478','60220662','10051232','10032395','10052720','10038793','10018676','60335836','55021256','10035267','55001163','55001163','55021268','55002611','37300614','55003835','55016617','55019347','55019930','55003557','55006521','55012863','55003615','55016625','55005625','55016874','55016380','55005436','55018774','55016493','55016965','55019033','55012746','55010013','55019213','55019297','67508663','67500589','67517120','67500870','67528090','55000251','10028783','10026629','55021239','60335995','55001163','55002002','55002335','55004277','55021263','55004451','55006278','55016940','55003918','55016617','55016465','55012518','55004089','55016697','55019514','55008494','55006278','55003793','55020943','55005143','55000503','55006518','55017346','55009719','55003793','55012439','55005001','55019594','55015973','55018719','55005010','55003611','67503825','55018492','55018505','55016836','55020245','55019693','50002559','50002559','60335595','55021080','60220835','50005360','60341257','55021263','55003683','55018879','55016635','55005348','55018395','55017346','55016288','55005123','55003664','55016135','55005575','55004715','55016460','55016138','55016033','55003615','55019210','67508962','67500852','55013463','67500317','67505717','67505692','55014056','60365066','67528373','10049849','60221477','55020903','55002335','55021268','55005723','55016289','55017814','55012242','55004326','55016033','55016615','55018800','55016444','55016530','55006912','55016530','55015726','55005776','55005411','55004791','55018978','55018621','60221218','55015982','67506254','55019624','55016234','55019166','67508836','67509528','60221241','60238059','10025977','10030578','55002123','10026808','10049931','55020994','55002960','55004277','55002225','55002611','55006875','55016375','37300614','55016469','55006060','50004403','55004274','55016289','55004111','55017654','55016444','55004524','55004688','55016134','55016344','67503371','55015941','55019528','55016760','67514554','55016755','55016248','55014157','55012168','67516625','67519435','55012423','67500955','55013303','67528778');
+
+select usr.usr_udf_sourcesystem_udf,usr.usr_login,usr_udf_jobrolename ,j.ud_jio_beat_jobtype, ost.ost_status, obj.obj_name, oiu.account_type, oiu.oiu_prov_mechanism 
+from oiu, ost, obj, usr, orc,ud_jio_beat j
+where oiu.ost_key = ost.ost_key
+and ost.obj_key = obj.obj_key
+and oiu.usr_key = usr.usr_key
+and obj.obj_name = 'JioBeat User'
+and oiu.orc_key = orc.orc_key
+and ost.ost_status = 'Provisioned'
+and usr_login in('55019930','10034970','20000799','10021077','10049929','10049948','10049849','10017226','10049815','55005723','10036701','10009830','55001828','55001729','55002023','55002111','55019594','55005886','55006059','55005572','55002123','55016138','55016138','55006060','55000251','55000251','55001163','55001163','55001163','55001163','55001163','55002002','55002002','55019595','55016234','55004715','55004274','55006875','55003611','55005575','55005575','55003712','55003339','55003339','55019213','55018774','55008494','55016755','55007428','55003793','55003793','55017346','55017346','55012158','55006518','55016288','55003918','55012242','55002723','55005348','55005348','55004357','55004357','55004357','55003557','55005178','55005776','55005436','55005411','37300012','55002611','55002611','55002611','55002611','55016867','55016867','55005123','55006784','55001863','55004111','55004326','55004326','55016956','55004668','55003227','55003683','55004688','55004702','55004702','55019270','55000503','55003417','55003417','50004403','55015982','55012746','55002960','55005128','55016302','55002122','55016469','55002335','55002335','55002335','50002559','50002559','55005143','10018676','55002693','55016530','55016530','55016248','55016134','55018395','55018395','55005859','55018800','55018799','55018778','55005625','60238059','60238073','55013653','55016135','55016135','55014916','55011991','55019703','55019703','55018879','55020210','67505692','55020245','55019297','67505717','55012439','55012182','55017992','67513335','55019167','55019166','55012423','55017674','55019076','55013463','55017654','55012168','67500870','67509528','60220835','67515903','67509448','55018719','55018978','55019033','55020616','10038793','10032395','10030578','10010623','10010594','55016050','55016615','55020010','10028788','10028783','55019528','10028522','55016874','60335595','10035267','10025977','10026808','10026629','55003615','55003615','55003664','55006278','55006278','10032458','50005360','10049931','10051232','60335995','60335836','55016836','10052720','55015795','55018346','55020943','55020943','55021113','55020903','55021128','55020401','67516625','55021094','55006912','55006912','55021263','55021263','55021263','67506254','55021075','55021080','55021268','55021268','55021268','55021016','55021256','55021239','55019347','55001640','55004998','55004998','55020994','55019693','55013303','55004524','55003317','55003317','55016493','55016625','55015726','55015967','67519435','67520910','67500955','67500589','67500317','67501448','67501660','67500852','10036895','10049908','55019624','55014056','10025832','55016375','55010013','67508836','67517120','55015886','67509261','67501597','55005001','55016940','55012863','55012863','60341257','55005890','55005890','55016697','60335999','55019210','55007004','55022991','55003835','55003835','55004791','55004451','55004089','55004089','55004277','55004277','55017984','55005031','55005342','55006521','55018950','55019514','60220662','55015973','55016617','55016617','55016708','55016635','55012518','67508663','55016526','55016460','55016465','55017573','55016957','55016957','55016380','55018491','55018505','55018556','55018621','55018648','55016760','55016033','55016033','55016344','55016444','55016444','55016449','55003689','55003689','55016197','55016197','60221477','55016456','60221478','60221041','60221218','60221241','60221194')
+
+//DB-Verision
+
+select Owner, Comp_Name, Version, Status From Schema_Version_Registry Order By 1, 2, 3;
+
+SELECT * FROM PRODUCT_COMPONENT_VERSION;
+
+
+
+
+//RECON EVENTS:
+
+
+select usr_login, USR_UDF_JO_STEXT from p_oim.usr where usr_login='67549234';
+Select re.re_key, re.re_status, rb.rb_batch_status, obj.OBJ_NAME, rj.rj_start_time, rj.rj_end_time, re.usr_key, re_note
+From p_oim.Recon_Events Re Join p_oim.Recon_Batches Rb On Rb.Rb_Key = Re.Rb_Key
+join p_oim.recon_jobs rj on rj.rj_key = re.rj_key and rj.rj_key = rb.rj_key
+join p_oim.obj obj on obj.obj_key = re.obj_key
+Where Lower(Re.Re_Status) = 'data received'
+and lower(Rb.Rb_Batch_Status) = 'ready for processing'
+and upper(obj.obj_name) = 'ADUSERS_GTC'
+and re.usr_key is null
+--and re.re_create like SYSDATE
+order by 5 desc; 
+
+
+select * from p_oim.recon_events where re_key = '9431337'
+select * from p_oim.recon_batches where rb_key = '598953'
+select * from p_oim.recon_jobs where rj_key = '626712'
+
+
+
+Select re.re_key, re.re_status, rb.rb_batch_status, obj.OBJ_NAME
+From Recon_Events Re Join Recon_Batches Rb On Rb.Rb_Key = Re.Rb_Key
+join obj obj on obj.obj_key = re.obj_key
+Where Lower(Re.Re_Status) = 'data received'
+and lower(Rb.Rb_Batch_Status) = 'ready for processing'
+and upper(obj.obj_name) = 'ADUSERS_GTC'
+and re.usr_key is not null
+order by 1 desc;
+
+
+
+//////OID update
+
+
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+
+import java.util.Properties;
+import javax.naming.Context;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.BasicAttribute;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import javax.naming.directory.ModificationItem;
+public class OIDUserUpdate {
+    
+//ODLLogger logger = ODLLogger.getODLLogger("Testlogs.logger");
+
+public OIDUserUpdate() {
+
+                            }
+                public void updateEntry() throws FileNotFoundException, IOException,
+                                     NamingException {
+                    //logger.info("OID updateds");
+            Properties properties = new Properties();
+            properties.put(Context.INITIAL_CONTEXT_FACTORY,"com.sun.jndi.ldap.LdapCtxFactory");
+            properties.put(Context.PROVIDER_URL, "ldap://pdods01.bss.jio.com:3060");
+                    properties.put(Context.SECURITY_AUTHENTICATION, "Simple");
+                    properties.put(Context.SECURITY_PRINCIPAL, "cn=orcladmin");
+                    properties.put(Context.SECURITY_CREDENTIALS, "JioIAM0315");
+                    DirContext context = new InitialDirContext(properties);
+            System.out.println("Connected");
+            
+                    File inputFile;
+                    inputFile = new File("C:\\Oimapi\\OIDUpdatedata.txt");
+                    FileReader fReader = new FileReader(inputFile);
+                    BufferedReader bReader = new BufferedReader(fReader);
+                    String readData = bReader.readLine();
+                    readData = bReader.readLine();
+                    while (readData != null) {
+                
+                String[] keyValue = readData.trim().split("@");
+                String dnid=keyValue[0];
+                String update=keyValue[1];
+                
+            Attributes attrs = context.getAttributes(dnid);
+            displayAttributes(attrs);
+            Attribute attribute = new BasicAttribute("orclIsEnabled",update);
+            //obpasswordchangeflag,orclIsEnabled,obpasswordcreationdate
+            ModificationItem[] item = new ModificationItem[1];
+            item[0] = new ModificationItem(DirContext.REPLACE_ATTRIBUTE,attribute);
+            context.modifyAttributes(dnid, item);
+
+                readData = bReader.readLine();
+            }
+                    context.close();
+                }
+                public void displayAttributes(Attributes attributes) {
+                try {
+                System.out.println("user:" + attributes.get("uid").get());
+                  //  logger.info("user:" + attributes.get("uid").get());
+
+                } catch (NamingException e) {
+
+                                e.printStackTrace();
+                                }
+                }
+                public static void main(String[] args) throws FileNotFoundException,
+                                                  IOException,
+                                                  NamingException {
+                OIDUserUpdate sample = new OIDUserUpdate();
+                sample.updateEntry();
+                }
+
+}
+
+
+
+
+//////Fetch OID details
+
+
+
+import java.io.BufferedReader;
+
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Hashtable;
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.SearchControls;
+import javax.naming.directory.SearchResult;
+import javax.naming.ldap.InitialLdapContext;
+import javax.naming.ldap.LdapContext;
+
+public class FetchDetails {
+
+	public static BufferedWriter bw = null;
+	public static BufferedWriter bw1 = null;
+	public static BufferedWriter bw2 = null;
+	static BufferedReader br1 = null;
+	static BufferedReader br2 = null;
+	static BufferedReader br3 = null;
+
+	public static void main(String[] args) throws IOException {
+		// System.out.println("run: " + new Date());
+		LdapContext ldapContext = getLdapContext();
+		SearchControls searchControls = getSearchControls();
+		FetchDetails ld = new FetchDetails();
+		try {
+
+			String sCurrentLine;
+			String cnv;
+			String hello;
+
+			BufferedReader br = new BufferedReader(new FileReader("C:\\Oimapi\\cndata.txt"));
+
+			bw = new BufferedWriter(new FileWriter("C:\\Oimapi\\LastLoginTimeList.txt"));
+			bw1 = new BufferedWriter(new FileWriter("C:\\Oimapi\\NotyetLoggedinList.txt"));
+		
+			String id = null;
+
+			while ((sCurrentLine = br.readLine()) != null) {
+				// System.out.println(sCurrentLine);
+
+				cnv = "cn=" + sCurrentLine;
+
+				ld.getUserInfo(cnv, ldapContext, searchControls);
+
+			}
+
+			bw.close();
+			bw1.close();
+
+			try {
+				if (ldapContext != null)
+					ldapContext.close();
+			} catch (NamingException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+
+	}
+
+	private static LdapContext getLdapContext() {
+		LdapContext ctx = null;
+		try {
+			Hashtable<String, String> env = new Hashtable<String, String>();
+			env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+			env.put(Context.SECURITY_AUTHENTICATION, "Simple");
+			env.put(Context.SECURITY_PRINCIPAL, "cn=orcladmin");// input user &
+																// password for
+																// access to
+																// ldap
+			env.put(Context.SECURITY_CREDENTIALS, "JioIAM0315");
+			env.put(Context.PROVIDER_URL, "ldap://pdods01.bss.jio.com:3060");
+
+			ctx = new InitialLdapContext(env, null);
+			System.out.println("LDAP Connection: COMPLETE");
+		} catch (NamingException nex) {
+			System.out.println("LDAP Connection: FAILED");
+			nex.printStackTrace();
+		}
+
+		return ctx;
+	}
+
+	/**
+	 * @param userName
+	 * @param ctx
+	 * @param searchControls
+	 */
+	public static void getUserInfo(String userName, LdapContext ctx, SearchControls searchControls) throws IOException {
+
+		// System.out.println("*** " + userName + " ***");
+		String a = null;
+		String b = null;
+		String c = null;
+		// String d=null;
+		String e = null;
+		String chdate = null;
+		String pwdchdate = null;
+		String dd = null;
+		String r = null;
+		String d = null;
+		String dn1=null;
+		String mailid=null;
+		String Disp=null;
+		String createdate=null;
+
+		try {
+			NamingEnumeration<SearchResult> answer = ctx.search("dc=idm,dc=jio,dc=com", userName, searchControls);
+
+			if (answer.hasMore()) {
+				Attributes attrs = answer.next().getAttributes();
+				a = userName;
+				//a=a+",cn=Employees,cn=Users,dc=idm,dc=jio,dc=com";
+				//Disp=attrs.get("orclIsEnabled").toString();
+				//System.out.println(a+  "  "+Disp);
+				
+
+			try {  
+				//System.out.println(a);
+					
+				Disp=attrs.get("orclIsEnabled").toString();
+				
+					/*mailid=attrs.get("mail").toString();
+					System.out.println("mail"+mailid);
+					Disp=attrs.get("displayName").toString();
+					System.out.println("disp"+Disp);
+					chdate = attrs.get("orcllastlogintime").toString();
+					*/
+				//	createdate=attrs.get("createtimestamp").toString();
+					//Disp=createdate.substring(17,createdate.length()-3);
+					
+					//createdate=Disp.substring(6, 8) + ":" + Disp.substring(4, 6) + ":" + Disp.substring(0, 4) + ":"
+					//+ Disp.substring(8, 10) + ":" + Disp.substring(10, 12);
+					//.out.println("lastlogin"+chdate);
+					//pwdchdate = attrs.get("pwdchangedtime").toString();
+					//r = pwdchdate.substring(16, pwdchdate.length() - 3);
+					//pwdchdate = r.substring(6, 8) + ":" + r.substring(4, 6) + ":" + r.substring(0, 4) + ":"
+					//		+ r.substring(8, 10) + ":" + r.substring(10, 12);
+					
+				
+/*
+					d = chdate.substring(19, chdate.length() - 3);
+					chdate=d.substring(6, 8) + ":" + d.substring(4, 6) + ":" + d.substring(0, 4) + ":"
+							+ d.substring(8, 10) + ":" + d.substring(10, 12);
+System.out.println(chdate);
+					//bw.append(dn1);
+					//bw.append(",");
+					//bw.append(pwdchdate);
+					//bw.append(",");
+					bw.append(a);
+					bw.append(",");
+					bw.append(chdate);
+					bw.append(",");
+					bw.append(pwdchdate);
+					bw.append(",");
+					bw.append(chdate);*/
+									//	bw.append(d.substring(6, 8) + ":" + d.substring(4, 6) + ":" + d.substring(0, 4) + ":"
+						//	+ d.substring(8, 10) + ":" + d.substring(10, 12));
+				bw.append(a);
+				bw.append(",");
+				bw.append(Disp);
+					
+					/* bw.append(",");
+					
+					bw.append(r.substring(6, 8) + ":" + r.substring(4, 6) +
+					 ":" + r.substring(0, 4) + ":"
+					+ r.substring(8, 10) + ":" + r.substring(10, 12));*/
+					bw.newLine();
+
+					// System.out.println(chdate + " " + chdate.substring(17,
+					// chdate.length() - 3));
+
+					//System.out.println(pwdchdate + "             "  );//chdate.substring(22, chdate.length() - 7));
+
+				} catch (java.lang.NullPointerException ne) {
+
+					System.out.println("user unlocked" + a);
+					bw1.append(a);
+					
+					bw1.newLine();
+					// System.out.println(pwdchdate + " " +
+					// pwdchdate.substring(16, pwdchdate.length() - 7));
+				}
+			}
+
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+
+	}
+
+	private static SearchControls getSearchControls() {
+		SearchControls cons = new SearchControls();
+		cons.setSearchScope(SearchControls.SUBTREE_SCOPE);
+		String[] attrIDs = { "dn","orcllastlogintime","EmploymentStatusText","orclIsEnabled" }; //"createtimestamp","orcllastlogintime","pwdchangedtime" };
+		// "orclnormdn","orclisenabled","createtimestamp","pwdchangedtime""jiocenterid"
+		cons.setReturningAttributes(attrIDs);
+		return cons;
+	}
+
+}
+
+
+
+
+
+
+
+
+
+
