@@ -1,0 +1,152 @@
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Hashtable;
+
+import javax.security.auth.login.LoginException;
+
+import com.csvreader.CsvReader;
+import com.thortech.xl.vo.AccessPolicyResourceData;
+
+import oracle.iam.platform.OIMClient;
+import Thor.API.Exceptions.tcAPIException;
+import Thor.API.Exceptions.tcGroupNotFoundException;
+import Thor.API.Exceptions.tcInvalidAttributeException;
+import Thor.API.Exceptions.tcObjectNotAssignedException;
+import Thor.API.Exceptions.tcObjectNotFoundException;
+import Thor.API.Operations.tcAccessPolicyOperationsIntf;
+import Thor.API.Operations.tcFormDefinitionOperationsIntf;
+import Thor.API.Operations.tcGroupOperationsIntf;
+import Thor.API.Operations.tcObjectOperationsIntf;
+
+//Note:Download Jar file-->"com.csvreader.CsvReader"
+
+/* Sample CSV file 
+ * 
+ * =========================================================
+ * provObjName,grpName,policyName,formName
+ LDAP User,JAVA,AccessPolicyBycode10,UD_LDAP_USR
+ LDAP User,JAVA,AccessPolicyBycode11,UD_LDAP_USR
+ *========================================================
+ *
+ *
+ *provObjName-->"LDAP User";//resource object name
+ *grpName------>"JavaDevloper";//Name of the role
+ *policyName--------->"AccessPolicy1";//Give a name to accesspolicy
+ *formName -------->"UD_LDAP_USR" form Name;
+ */
+
+public class CreateAccessPolicy {
+
+	public static void main(String[] args) throws LoginException,
+			tcAPIException, tcObjectNotFoundException,
+			tcGroupNotFoundException, tcInvalidAttributeException,
+			tcObjectNotAssignedException {
+
+		System.setProperty("java.security.auth.login.config",
+				"D:\\Oracle\\Middleware\\Oracle_IDM1\\server\\config\\authwl.conf");
+		System.setProperty("OIM.AppServerType", "wls");
+		System.setProperty("APPSERVER_TYPE", "wls");
+
+		String provObjName;// resource object name
+		String grpName;// Name of the role
+		String policyName;// Give a name to accesspolicy
+		String formName;// form name
+
+		try {
+
+			CsvReader accPolCsvData = new CsvReader("E:\\AccPolCsv.csv");
+
+			Hashtable<String, String> env = new Hashtable<String, String>();
+			env.put("java.naming.provider.url", "t3://192.168.6.171:14000");
+			env.put("java.naming.factory.initial",
+					"weblogic.jndi.WLInitialContextFactory");
+			OIMClient oimClient = new OIMClient(env);
+			accPolCsvData.readHeaders();
+
+			while (accPolCsvData.readRecord()) {
+
+				// Reading CSV file data
+				provObjName = accPolCsvData.get("provObjName");
+				grpName = accPolCsvData.get("grpName");
+				policyName = accPolCsvData.get("policyName");
+				formName = accPolCsvData.get("formName");
+
+				// here use Platform.get service
+				oimClient.login("xelsysadm", "Ojas1525");
+
+				tcAccessPolicyOperationsIntf apIntf = (tcAccessPolicyOperationsIntf) oimClient
+						.getService(Thor.API.Operations.tcAccessPolicyOperationsIntf.class);
+
+				tcGroupOperationsIntf grpIntf = (tcGroupOperationsIntf) oimClient
+						.getService(Thor.API.Operations.tcGroupOperationsIntf.class);
+
+				tcObjectOperationsIntf objIntf = (tcObjectOperationsIntf) oimClient
+						.getService(Thor.API.Operations.tcObjectOperationsIntf.class);
+
+				tcFormDefinitionOperationsIntf fdIntf = (tcFormDefinitionOperationsIntf) oimClient
+						.getService(Thor.API.Operations.tcFormDefinitionOperationsIntf.class);
+
+				// grpKey,provObjKey,formDefKey this infromation get from
+				// utility(OIM utility) calss
+
+				long grpKey = OIMUtils.getGroupKey(grpIntf, grpName);
+				long provObjKey = OIMUtils.getObjectKey(objIntf, provObjName);
+				long formDefKey = OIMUtils.getFormDefKey(fdIntf, formName);
+
+				// As per requirement this read in csv file (Retrofit Flag,By
+				// Request,Description,Name)but i added directly.
+				HashMap hm = new HashMap();
+				hm.put("Access Policies.Retrofit Flag", "0");
+				hm.put("Access Policies.By Request", "0");
+				hm.put("Access Policies.Description", "Test");
+				hm.put("Access Policies.Name", policyName);
+				hm.put("Access Policies.Note", "TEST NOTE");
+
+				long[] provObjKeys = { provObjKey };
+				boolean[] revokeObjectIfNotApply = { true };
+				long[] denyObjKeys = new long[0];
+				long[] groupKeys = { grpKey };
+
+				AccessPolicyResourceData aprd = new AccessPolicyResourceData(
+						provObjKey, provObjName, formDefKey, formName, "P");
+
+				// According to requirement we have to pass these data in csv
+				// and read like above
+				HashMap hm1 = new HashMap(); // parent data
+
+				hm1.put("UD_LDAP_USR_SERVER", "7");
+				hm1.put("UD_LDAP_USR_ORGANIZATION",
+						"ou=Mohan Target,dc=sailpoint,dc=com");
+
+				aprd.setFormData(hm1);
+
+				AccessPolicyResourceData[] aprdArray = { aprd };
+
+				apIntf.createAccessPolicy(hm, provObjKeys,
+						revokeObjectIfNotApply, denyObjKeys, groupKeys,
+						aprdArray);
+
+				// for out put
+				System.out.println("Created accesspolicy name = " + policyName);
+
+			}
+
+			accPolCsvData.close();
+			oimClient.logout();
+			System.exit(0);
+
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		/*
+		 * provObjName = "LDAP User";//resource object name grpName =
+		 * "JAVA";//Name of the role policyName = "AccessPolicy25";//Give a name
+		 * to accesspolicy formName = "UD_LDAP_USR";
+		 */
+
+	}
+}
